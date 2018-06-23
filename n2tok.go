@@ -1,35 +1,71 @@
 package n2tok
 
 import (
-	"time"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"github.com/gin-gonic/gin"
-	"strings"
 	"fmt"
+	"io/ioutil"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v2"
+
+	"errors"
 
 	jwt_lib "github.com/dgrijalva/jwt-go"
-	)
+)
 
+// TokeCfgFile
 type TokeCfgFile struct {
 	Cfg TokenCfg `yaml:"token"`
 }
 
+// TokenCfg
 type TokenCfg struct {
 	EncKey   string `yaml:"encKey"`
 	ExpHours int    `yaml:"expHours"`
 }
 
-// tok defines a token generator object
-type tok struct {
+// Claims
+type Claims map[string]interface{}
+
+// Tok
+type Tok struct {
+	Claims Claims
+	Valid  bool
+	Err    error
+	JwtTok *jwtTok
+}
+
+// jwtTok defines a token generator object
+type jwtTok struct {
 	encKey []byte
 	exp    int
 }
 
-// GinParse parses a gin.Context
-func (t *tok) GinParse(c *gin.Context) (map[string]interface{}, error) {
+// GinHandler is a middleware for Gin-gonic
+func (t *jwtTok) GinHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
 
-	claims := make(map[string]interface{}, 0)
+		claims, err := t.GinParse(c)
+		tok := &Tok{
+			Claims: claims,
+			JwtTok: t,
+			Valid:  true,
+			Err:    err,
+		}
+		if err != nil {
+			tok.Err = err
+			tok.Valid = false
+		}
+
+		c.Set("Tok", tok)
+	}
+}
+
+// GinParse parses a gin.Context
+func (t *jwtTok) GinParse(c *gin.Context) (map[string]interface{}, error) {
+
+	claims := make(Claims, 0)
 	tokStr := ""
 	authHeader := strings.Split(c.GetHeader("Authorization"), " ")
 	if len(authHeader) > 1 && authHeader[0] == "Bearer" {
@@ -49,18 +85,17 @@ func (t *tok) GinParse(c *gin.Context) (map[string]interface{}, error) {
 			return claims, err
 		}
 
-
 		if claims, ok := token.Claims.(jwt_lib.MapClaims); ok && token.Valid {
 			return claims, nil
 		}
 
 	}
 
-	return claims, nil
+	return claims, errors.New("invalid token")
 }
 
 // GetToken generated a HS256 token from an object
-func (t *tok) GetToken(v interface{}) (string, error) {
+func (t *jwtTok) GetToken(v interface{}) (string, error) {
 	// make a token
 	token := jwt_lib.New(jwt_lib.GetSigningMethod("HS256"))
 	token.Claims = jwt_lib.MapClaims{
@@ -73,7 +108,7 @@ func (t *tok) GetToken(v interface{}) (string, error) {
 }
 
 // NewTokFromYaml returns a configured tok used
-func NewTokFromYaml(path string) (*tok, error) {
+func NewTokFromYaml(path string) (*jwtTok, error) {
 	ymlData, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -88,7 +123,7 @@ func NewTokFromYaml(path string) (*tok, error) {
 
 	tcfg := tokCfgFile.Cfg
 
-	tok := &tok{encKey: []byte(tcfg.EncKey), exp: tcfg.ExpHours}
+	tok := &jwtTok{encKey: []byte(tcfg.EncKey), exp: tcfg.ExpHours}
 
 	return tok, nil
 }
