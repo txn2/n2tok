@@ -26,7 +26,7 @@ type tok struct {
 	exp    int
 }
 
-
+// GinParse parses a gin.Context
 func (t *tok) GinParse(c *gin.Context) (map[string]interface{}, error) {
 
 	claims := make(map[string]interface{}, 0)
@@ -37,15 +37,17 @@ func (t *tok) GinParse(c *gin.Context) (map[string]interface{}, error) {
 	}
 
 	if len(tokStr) > 0 {
-		token, _ := jwt_lib.Parse(tokStr, func(token *jwt_lib.Token) (interface{}, error) {
-			// Don't forget to validate the alg is what you expect:
+		token, err := jwt_lib.Parse(tokStr, func(token *jwt_lib.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt_lib.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
 
-			// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
 			return t.encKey, nil
 		})
+
+		if err != nil {
+			return claims, err
+		}
 
 
 		if claims, ok := token.Claims.(jwt_lib.MapClaims); ok && token.Valid {
@@ -56,7 +58,6 @@ func (t *tok) GinParse(c *gin.Context) (map[string]interface{}, error) {
 
 	return claims, nil
 }
-
 
 // GetToken generated a HS256 token from an object
 func (t *tok) GetToken(v interface{}) (string, error) {
