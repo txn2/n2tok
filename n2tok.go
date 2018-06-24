@@ -98,9 +98,13 @@ func (t *jwtTok) GinParse(c *gin.Context) (map[string]interface{}, error) {
 func (t *jwtTok) GetToken(v interface{}) (string, error) {
 	// make a token
 	token := jwt_lib.New(jwt_lib.GetSigningMethod("HS256"))
+
+	fmt.Printf("got here\n")
+
+	time.Local = time.UTC
 	token.Claims = jwt_lib.MapClaims{
 		"data": v,
-		"exp":  time.Now().Add(time.Hour * 24).Unix(),
+		"exp":  time.Now().Unix() + (int64(t.exp) * 60 * 60),
 	}
 	tokenString, err := token.SignedString(t.encKey)
 
