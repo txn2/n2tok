@@ -99,8 +99,6 @@ func (t *jwtTok) GetToken(v interface{}) (string, error) {
 	// make a token
 	token := jwt_lib.New(jwt_lib.GetSigningMethod("HS256"))
 
-	fmt.Printf("got here\n")
-
 	time.Local = time.UTC
 	token.Claims = jwt_lib.MapClaims{
 		"data": v,
